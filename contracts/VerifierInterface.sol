@@ -21,4 +21,7 @@ interface VerifierInterface {
         bytes32 deviceHash,
         uint256 deviceTimestamp
     ) external view returns (bytes32);
+
+        function verifyFeeSelector() external view returns (address);
+
 }

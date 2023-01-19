@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./LocationNFT.sol";
 import "./VerifierInterface.sol";
+import "./IVerifyFeeManager.sol";
+import "./IVerifyFeeSelector.sol";
 import "hardhat/console.sol";
 
 contract Logic is Ownable, ReentrancyGuard {
@@ -78,21 +80,23 @@ contract Logic is Ownable, ReentrancyGuard {
         int256 _long,
         uint256 _distance,
         uint256 _time_from,
-        uint256 _time_to
-        // bytes32 _deviceHash,
-        // bytes memory signature
+        uint256 _time_to,
+        bytes32 _deviceHash,
+        bytes memory signature
     ) external payable nonReentrant {
+       
         // verify proof of location 
-        // bytes32 digest = verifier.generateLocationDistanceDigest(
-        //     msg.sender,
-        //     _lat,
-        //     _long,
-        //     _distance,
-        //     _deviceHash,
-        //     _time_from,
-        //     _time_to
-        // );
-        // require(verifier.verify(digest, signature), "Invalid proof of location"); 
+        bytes32 digest = verifier.generateLocationDistanceDigest(
+             msg.sender,
+             _lat,
+             _long,
+             _distance,
+             _deviceHash,
+             _time_from,
+             _time_to
+         );
+
+        require(verifier.verify(digest, signature), "Invalid proof of location"); 
 
         // verify that an AirDrop claim doesn't exists for this address 
         bytes32 airDropHash = generateHash(_lat, _long, _distance, _time_from, _time_to);
@@ -134,5 +138,15 @@ contract Logic is Ownable, ReentrancyGuard {
             returnFee = _tokens_count * baseFee;
         }
         return returnFee;
+    }
+
+      function claimFee() external view returns (uint256) {
+        return
+            IVerifyFeeManager(
+                IVerifyFeeSelector(
+                    verifier.verifyFeeSelector()).fetchVerifyFeeManager(
+                    address(this)
+                )
+            ).fee(address(this));
     }
 }
