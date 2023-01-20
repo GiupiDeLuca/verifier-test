@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 interface VerifierInterface {
     function isValidator(address account) external view returns (bool);
 
-    function verify(bytes32 digest, bytes memory signature) external view returns (bool);
+    function verify(bytes32 digest, bytes memory signature) external payable returns (bool);
 
     function generateLocationDistanceDigest(
         address holder,
@@ -22,6 +22,6 @@ interface VerifierInterface {
         uint256 deviceTimestamp
     ) external view returns (bytes32);
 
-        function verifyFeeSelector() external view returns (address);
+    function verifyFeeSelector() external view returns (address);
 
 }

@@ -96,7 +96,7 @@ contract Logic is Ownable, ReentrancyGuard {
              _time_to
          );
 
-        require(verifier.verify(digest, signature), "Invalid proof of location"); 
+        require(verifier.verify{value: msg.value}(digest, signature), "Invalid proof of location"); 
 
         // verify that an AirDrop claim doesn't exists for this address 
         bytes32 airDropHash = generateHash(_lat, _long, _distance, _time_from, _time_to);
