@@ -37,7 +37,7 @@ describe("Logic contract", function () {
 
         console.log("Adding airdrop...");
         const tx = await this.logic.addAirDrop(
-            42729532, -73693282, 10000, 1673308800, 1673913600, 3, 
+            42729532, -73693282, 10000, 1672781280, 1675114080, 3, 
             { from: owner.address, value: 1000 });
 
         const receipt = await tx.wait();
@@ -59,11 +59,11 @@ describe("Logic contract", function () {
         console.log("Claiming airdrop...");
         const claim = await this.logic.claim(
             // Location data
-            42729532, -73693282, 10000, 1673308800, 1673913600, 
+            42729532, -73693282, 10000, 1672781280, 1675114080, 
             // Device hash
             "0x6bb76d07b1d918c8d2821f4cf3fa834d93652fd9913187321dfd7844694910c3",
             // Signature
-            "0x945b06c02cd6ef7e9df12b908fe9dec8c4e1c6e38f1acd60a2059c270c7894095e6f2ea8412d6a8bb0e85d66ab0a1b2c6a7a8ac66537434be338918158704c9a1b",
+            "0x96bedd7a152b21edf70f977c3e981145fc547a6426253f85ab18f05463207c63517cff25e5c0262a13e5b42b259f287edbda6fda9a41322ed63f4bdb4883245b1c",
             {value: "1000000000000000000"} 
         )
         console.log("claim", claim)
