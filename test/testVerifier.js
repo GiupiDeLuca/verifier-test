@@ -3,28 +3,28 @@ const { expect } = require("chai");
 const verifierAddress = "0xB9ae925fF8318915e3266e0EA41a37408033caC6"
 
 describe("Logic contract", function () {
-    this.beforeAll(async function () {
-        const [owner] = await ethers.getSigners();
-        console.log("Running tests...")
-        console.log("Deploying contracts with the account:", owner.address);
-        console.log("Account balance:", (await owner.getBalance()).toString());
+    // this.beforeAll(async function () {
+    //     const [owner] = await ethers.getSigners();
+    //     console.log("Running tests...")
+    //     console.log("Deploying contracts with the account:", owner.address);
+    //     console.log("Account balance:", (await owner.getBalance()).toString());
 
-        // Deploy the NFT Token contract
-        const NFTToken = await ethers.getContractFactory("LocationNFT");
-        this.nftToken = await NFTToken.deploy();
-        await this.nftToken.deployed();
-        console.log(
-            `NFTToken contract deployed at ${this.nftToken.address}`
-        );
+    //     // Deploy the NFT Token contract
+    //     const NFTToken = await ethers.getContractFactory("LocationNFT");
+    //     this.nftToken = await NFTToken.deploy();
+    //     await this.nftToken.deployed();
+    //     console.log(
+    //         `NFTToken contract deployed at ${this.nftToken.address}`
+    //     );
 
-        // Deploy the logic contract
-        const Logic = await ethers.getContractFactory("Logic");
-        this.logic = await Logic.deploy(verifierAddress, this.nftToken.address, 10, owner.address, 10);
-        await this.logic.deployed();
-        console.log(
-            `Logic contract deployed at ${this.logic.address}`
-        );
-    });
+    //     // Deploy the logic contract
+    //     const Logic = await ethers.getContractFactory("Logic");
+    //     this.logic = await Logic.deploy(verifierAddress, this.nftToken.address, 10, owner.address, 10);
+    //     await this.logic.deployed();
+    //     console.log(
+    //         `Logic contract deployed at ${this.logic.address}`
+    //     );
+    // });
     
     it("Deployment should assign ownership", async function () {
         const owner = await this.logic.owner();
@@ -71,4 +71,44 @@ describe("Logic contract", function () {
         const isClaimed = await this.logic.claimedAirDrops(owner.address, airdropHash)
         console.log("isClaimed", isClaimed)
     });
+
+    it.only("should return digest and signature", async () => {
+
+        const [owner] = await ethers.getSigners();
+        console.log("Running tests...")
+        console.log("Deploying contracts with the account:", owner.address);
+        console.log("Account balance:", (await owner.getBalance()).toString());
+
+        // Deploy the NFT Token contract
+        const NFTToken = await ethers.getContractFactory("LocationNFT");
+        const nftToken = await NFTToken.deploy();
+        await nftToken.deployed();
+        console.log(
+            `NFTToken contract deployed at ${nftToken.address}`
+        );
+
+        // Deploy the logic contract
+        const Logic = await ethers.getContractFactory("Logic");
+        const logic = await Logic.deploy(verifierAddress, nftToken.address, 10, owner.address, 10);
+        await logic.deployed();
+        console.log(
+            `Logic contract deployed at ${logic.address}`
+        );
+
+        this.timeout(45000);
+
+        const signer = await logic.claim(
+            // owner
+            owner.address,
+            // Location data
+            40855679, -73935867, 1000, 1674403740, 1675008540, 
+            // Device hash
+            "0x6bb76d07b1d918c8d2821f4cf3fa834d93652fd9913187321dfd7844694910c3",
+            // Signature
+            "0x9c8bda5060e75562aa851aeed41ef348c44c8d72da21d18b27b33f2bad5e02d43c55abb9f9a1516a53f9d1dc39ad165b7b072693106059d8e2042d55db1b8b7d1b",
+           
+        )
+
+        console.log("signer", signer)
+    })
 });

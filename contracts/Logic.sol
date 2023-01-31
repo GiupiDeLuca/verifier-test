@@ -8,8 +8,11 @@ import "./VerifierInterface.sol";
 import "./IVerifyFeeManager.sol";
 import "./IVerifyFeeSelector.sol";
 import "hardhat/console.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 contract Logic is Ownable, ReentrancyGuard {
+
+    using ECDSA for bytes32;
 
     event Claimed(address indexed holder, bytes32 indexed deviceHash);
 
@@ -17,10 +20,16 @@ contract Logic is Ownable, ReentrancyGuard {
     LocationNFT public NFT;
 
     address public feeReceiver;
-    uint public baseFee;
-    uint public feeCliff; // value after which creating more tokens will be free
+    uint256 public baseFee;
+    uint256 public feeCliff; // value after which creating more tokens will be free
 
-    constructor(address _verifier, address _nft, uint _baseFee, address _feeReceiver, uint _feeCliff)  {
+    constructor(
+        address _verifier,
+        address _nft,
+        uint256 _baseFee,
+        address _feeReceiver,
+        uint256 _feeCliff
+    ) {
         verifier = VerifierInterface(_verifier);
         NFT = LocationNFT(_nft);
         baseFee = _baseFee;
@@ -32,15 +41,15 @@ contract Logic is Ownable, ReentrancyGuard {
         int256 lat;
         int256 long;
         uint256 maxDistance;
-        uint time_from;
-        uint time_to;
-        uint tokens_count; 
-        uint tokens_minted;
+        uint256 time_from;
+        uint256 time_to;
+        uint256 tokens_count;
+        uint256 tokens_minted;
     }
 
     bytes32[] public airDropsHashes;
     mapping(bytes32 => AirDrop) public airDrops;
-    mapping(address => mapping(bytes32 => bool)) public claimedAirDrops; 
+    mapping(address => mapping(bytes32 => bool)) public claimedAirDrops;
 
     uint256 private _tokenId;
 
@@ -51,31 +60,63 @@ contract Logic is Ownable, ReentrancyGuard {
     function getAllHashes() public view returns (bytes32[] memory) {
         return airDropsHashes;
     }
-    
-    function generateHash(int256 _lat,int256 _long, uint256 _maxDistance,uint _time_from,uint _time_to) internal pure returns (bytes32 _hash) {
-        _hash = keccak256(abi.encodePacked(_lat, _long, _maxDistance, _time_from, _time_to));
+
+    function generateHash(
+        int256 _lat,
+        int256 _long,
+        uint256 _maxDistance,
+        uint256 _time_from,
+        uint256 _time_to
+    ) internal pure returns (bytes32 _hash) {
+        _hash = keccak256(
+            abi.encodePacked(_lat, _long, _maxDistance, _time_from, _time_to)
+        );
     }
 
     function addAirDrop(
         int256 _lat,
         int256 _long,
         uint256 _maxDistance,
-        uint _time_from,
-        uint _time_to, 
-        uint _tokens_count
-    ) external payable { 
-        require(_lat >= -90_000000 && _lat <= 90_000000, "Invalid latitude value");
-        require(_long >= -180_000000 && _long <= 180_000000, "Invalid longitude value");
+        uint256 _time_from,
+        uint256 _time_to,
+        uint256 _tokens_count
+    ) external payable {
+        require(
+            _lat >= -90_000000 && _lat <= 90_000000,
+            "Invalid latitude value"
+        );
+        require(
+            _long >= -180_000000 && _long <= 180_000000,
+            "Invalid longitude value"
+        );
         require(_maxDistance > 0, "Invalid max distance");
-        require(msg.value >= calculateFee(_tokens_count), "Value sent with tx is not sufficient based on the tokens count");
-        bytes32 airDropHash = generateHash(_lat, _long, _maxDistance, _time_from, _time_to);
-        require(airDrops[airDropHash].maxDistance == 0, "Duplicated airDrop"); 
-        airDrops[airDropHash] = AirDrop({lat: _lat, long: _long, maxDistance: _maxDistance, time_from: _time_from, time_to: _time_to, tokens_count: _tokens_count, tokens_minted: 0});
+        require(
+            msg.value >= calculateFee(_tokens_count),
+            "Value sent with tx is not sufficient based on the tokens count"
+        );
+        bytes32 airDropHash = generateHash(
+            _lat,
+            _long,
+            _maxDistance,
+            _time_from,
+            _time_to
+        );
+        require(airDrops[airDropHash].maxDistance == 0, "Duplicated airDrop");
+        airDrops[airDropHash] = AirDrop({
+            lat: _lat,
+            long: _long,
+            maxDistance: _maxDistance,
+            time_from: _time_from,
+            time_to: _time_to,
+            tokens_count: _tokens_count,
+            tokens_minted: 0
+        });
         airDropsHashes.push(airDropHash);
         _tokenId++;
     }
 
     function claim(
+        address owner,
         int256 _lat,
         int256 _long,
         uint256 _distance,
@@ -83,54 +124,57 @@ contract Logic is Ownable, ReentrancyGuard {
         uint256 _time_to,
         bytes32 _deviceHash,
         bytes memory signature
-    ) external payable nonReentrant {
-       
-        // verify proof of location 
+    ) external view returns (address _signer){
+
+        // verify proof of location
         bytes32 digest = verifier.generateLocationDistanceDigest(
-             msg.sender,
-             _lat,
-             _long,
-             _distance,
-             _deviceHash,
-             _time_from,
-             _time_to
-         );
+            owner,
+            _lat,
+            _long,
+            _distance,
+            _deviceHash,
+            _time_from,
+            _time_to
+        );
 
-        require(verifier.verify{value: msg.value}(digest, signature), "Invalid proof of location"); 
+        _signer = digest.toEthSignedMessageHash().recover(signature);
 
-        // verify that an AirDrop claim doesn't exists for this address 
-        bytes32 airDropHash = generateHash(_lat, _long, _distance, _time_from, _time_to);
-        require(claimedAirDrops[msg.sender][airDropHash] == false, "AirDrop has been already claimed for this address");
-        // verify that the Airdrop exists and it's available 
-        AirDrop memory airDrop = airDrops[airDropHash];
-        require(airDrop.maxDistance > 0, "AirDrop does not exist"); 
-        if (airDrop.tokens_count > 0) {
-            require(airDrop.tokens_count - airDrop.tokens_minted > 0, "No more tokens left for this AirDrop");
-        }
+    
+        // require(verifier.verify{value: msg.value}(digest, signature), "Invalid proof of location");
 
-        //update the mapping
-        claimedAirDrops[msg.sender][airDropHash] = true;
+        // // verify that an AirDrop claim doesn't exists for this address
+        // bytes32 airDropHash = generateHash(_lat, _long, _distance, _time_from, _time_to);
+        // require(claimedAirDrops[msg.sender][airDropHash] == false, "AirDrop has been already claimed for this address");
+        // // verify that the Airdrop exists and it's available
+        // AirDrop memory airDrop = airDrops[airDropHash];
+        // require(airDrop.maxDistance > 0, "AirDrop does not exist");
+        // if (airDrop.tokens_count > 0) {
+        //     require(airDrop.tokens_count - airDrop.tokens_minted > 0, "No more tokens left for this AirDrop");
+        // }
 
-        // mint the location NFT
-        NFT.safeMint(msg.sender); 
+        // //update the mapping
+        // claimedAirDrops[msg.sender][airDropHash] = true;
 
-        // emit the event
-        emit Claimed(msg.sender, airDropHash);
+        // // mint the location NFT
+        // NFT.safeMint(msg.sender);
 
-        // update the number of tokens minted for this airdrop
-        airDrops[airDropHash].tokens_minted++;
+        // // emit the event
+        // emit Claimed(msg.sender, airDropHash);
+
+        // // update the number of tokens minted for this airdrop
+        // airDrops[airDropHash].tokens_minted++;
     }
 
     function setFeeReceiver(address _receiver) public onlyOwner {
         feeReceiver = _receiver;
     }
 
-    function setFeeCliff(uint cliff) public onlyOwner {
+    function setFeeCliff(uint256 cliff) public onlyOwner {
         feeCliff = cliff;
     }
 
-    function calculateFee(uint _tokens_count) public view returns (uint) {
-        uint returnFee;
+    function calculateFee(uint256 _tokens_count) public view returns (uint256) {
+        uint256 returnFee;
 
         if (_tokens_count >= feeCliff) {
             returnFee = feeCliff * baseFee;
@@ -140,13 +184,11 @@ contract Logic is Ownable, ReentrancyGuard {
         return returnFee;
     }
 
-      function claimFee() external view returns (uint256) {
+    function claimFee() external view returns (uint256) {
         return
             IVerifyFeeManager(
-                IVerifyFeeSelector(
-                    verifier.verifyFeeSelector()).fetchVerifyFeeManager(
-                    address(this)
-                )
+                IVerifyFeeSelector(verifier.verifyFeeSelector())
+                    .fetchVerifyFeeManager(address(this))
             ).fee(address(this));
     }
 }
